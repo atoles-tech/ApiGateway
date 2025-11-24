@@ -1,0 +1,145 @@
+services:
+  discovery-service:
+    build: 
+      context: ../discovery-service
+      dockerfile: Dockerfile
+    container_name: discovery-service
+    ports:
+      - "8761:8761"
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  user-service-db:
+    image: postgres:17
+    container_name: user-service-db
+    environment:
+      POSTGRES_DB: user_service
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432" 
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  user-service:
+    build: 
+      context: ../user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - DB_URL_DOCKER=${DB_URL_DOCKER_USER_SERVICE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SERVER_PORT=8081
+    depends_on:
+      - discovery-service
+      - user-service-db
+      - redis
+    networks:
+      - app-network
+
+  auth-service-db:
+    image: postgres:17
+    container_name: auth-service-db
+    environment:
+      POSTGRES_DB: auth_service
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5433:5432" 
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  auth-service:
+    build: 
+      context: ../auth_service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "8082:8082"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - DB_URL_DOCKER=${DB_URL_DOCKER_AUTH_SERVICE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SERVER_PORT=8082
+    depends_on:
+      - discovery-service
+      - auth-service-db
+    networks:
+      - app-network
+
+  order-service-db:
+    image: postgres:17
+    container_name: order-service-db
+    environment:
+      POSTGRES_DB: order_service
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5434:5432" 
+    volumes:
+      - order_postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  order-service:
+    build: 
+      context: ../order_service
+      dockerfile: Dockerfile
+    container_name: order-service
+    ports:
+      - "8083:8083"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - DB_URL_DOCKER=${DB_URL_DOCKER_ORDER_SERVICE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - discovery-service
+      - order-service-db
+    networks:
+      - app-network
+
+  api-gateway:
+    build: .
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    restart: on-failure
+    depends_on:
+      - discovery-service
+      - user-service
+      - auth-service
+      - order-service
+    networks:
+      - app-network
+
+volumes:
+  user_postgres_data:
+  auth_postgres_data:
+  order_postgres_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

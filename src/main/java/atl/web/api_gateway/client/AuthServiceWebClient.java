@@ -5,6 +5,10 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import atl.web.api_gateway.dto.AuthReponseDto;
+import atl.web.api_gateway.dto.AuthRequestDto;
+import atl.web.api_gateway.dto.RegistrationRequestDto;
+import atl.web.api_gateway.dto.RegistrationResponseDto;
 import atl.web.api_gateway.dto.ValidateTokenRequestDto;
 import reactor.core.publisher.Mono;
 
@@ -31,5 +35,30 @@ public class AuthServiceWebClient {
             .retrieve()
             .bodyToMono(Boolean.class)
             .onErrorReturn(false);
+    }
+
+    public Mono<RegistrationResponseDto> register(RegistrationRequestDto request){
+        return webClient.post()
+            .uri("/api/v1/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(request)
+            .retrieve()
+            .bodyToMono(RegistrationResponseDto.class);
+    }
+
+    public Mono<AuthReponseDto> login(AuthRequestDto request){
+        return webClient.post()
+            .uri("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(request)
+            .retrieve()
+            .bodyToMono(AuthReponseDto.class);
+    }
+
+    public Mono<Void> deleteCredential(Long id){
+        return webClient.delete()
+            .uri("/api/v1/auth/delete/{id}", id)
+            .retrieve()
+            .bodyToMono(Void.class);
     }
 }

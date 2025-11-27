@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,mappings,metrics
+  endpoint:
+    health:
+      show-details: always
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    eureka-service-url-poll-interval-seconds: 3
+    eureka-server-connect-timeout-seconds: 5
+  instance:
+    lease-expiration-duration-in-seconds: 30
+
+spring:
+  profiles:
+    active: local
+
+  application:
+    name: api-gateway

@@ -1,9 +1,50 @@
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.2.4
+    healthcheck:
+      test: [ "CMD", "nc", "-vz", "localhost", "2181" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:6.2.4
+    healthcheck:
+      test: [ "CMD", "nc", "-vz", "localhost", "9092" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    ports:
+      - 29092:29092
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181 
+      KAFKA_LISTENERS: OUTSIDE://:29092,INTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: OUTSIDE://localhost:29092,INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT  
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL                                  
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1                                   
+    networks:
+      - app-network
+
   discovery-service:
     build: 
       context: ../discovery-service
       dockerfile: Dockerfile
     container_name: discovery-service
+    depends_on:
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: curl http://localhost:8761/actuator/health
       interval: 10s
@@ -51,7 +92,6 @@ services:
       - DB_URL_DOCKER=${DB_URL_DOCKER_USER_SERVICE}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
-      - SERVER_PORT=8081
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -88,7 +128,6 @@ services:
       - DB_URL_DOCKER=${DB_URL_DOCKER_AUTH_SERVICE}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
-      - SERVER_PORT=8082
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -123,6 +162,7 @@ services:
       - DB_URL_DOCKER=${DB_URL_DOCKER_ORDER_SERVICE}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
+      - KAFKA_URL=${KAFKA_URL}
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -151,11 +191,45 @@ services:
     networks:
       - app-network
 
+  payment-service-mongo-db:
+    image: mongo:7.0
+    container_name: payment-service-mongo-db
+    environment:
+      MONGO_INITDB_DATABASE: payment_service
+    ports:
+      - "27017:27017"
+    volumes:
+      - payment_mongo_data:/data/db
+    networks:
+      - app-network
+    
+  payment-service:
+    build: 
+      context: ../payment_service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    environment:
+      - DB_HOST_PAYMENT=${DB_HOST_PAYMENT}
+      - DB_PORT_PAYMENT=${DB_PORT_PAYMENT}
+      - DB_DATABASE_PAYMENT=${DB_DATABASE_PAYMENT}
+      - KAFKA_URL=${KAFKA_URL}
+    ports:
+      - "8086:8086"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      payment-service-mongo-db:
+        condition: service_started
+    networks:
+      - app-network
+
+
 volumes:
   user_postgres_data:
   auth_postgres_data:
   order_postgres_data:
   redis_data:
+  payment_mongo_data:
 
 networks:
   app-network:
